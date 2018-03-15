@@ -1,0 +1,11 @@
+--- a/arch/x86/crypto/tresor_asm.S.orig
++++ b/arch/x86/crypto/tresor_asm.S
+@@ -176,7 +176,7 @@
+ /* function epilogue */
+ .macro epilog
+ 	/* write output */
+-	movl		8(ebp),eax
++	movq		-64(rbp),rax
+ 	movdqu		rstate,0(eax)
+ 	/* reset XMM registers */
+ 	pxor		%xmm0,%xmm0

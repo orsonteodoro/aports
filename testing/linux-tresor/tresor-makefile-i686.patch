@@ -1,0 +1,11 @@
+--- a/Makefile.orig
++++ b/Makefile
+@@ -2,7 +2,7 @@
+ VERSION = 4
+ PATCHLEVEL = 14
+ SUBLEVEL = 20
+-EXTRAVERSION =
++EXTRAVERSION = -tresor0.3
+ NAME = Petit Gorille
+ 
+ # *DOCUMENTATION*

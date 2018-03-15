@@ -1,0 +1,467 @@
+# Contributor: Natanael Copa <ncopa@alpinelinux.org>
+# Contributor: Orson Teodoro <orsonteodoro@hotmail.com>
+# Maintainer: Orson Teodoro <orsonteodoro@hotmail.com>
+# Based on linux-vanilla and some linux-pf
+
+_flavor=tresor
+pkgname=linux-${_flavor}
+pkgver=4.14.20
+case $pkgver in
+	*.*.*)	_kernver=${pkgver%.*};;
+	*.*) _kernver=$pkgver;;
+esac
+pkgrel=0
+pkgdesc="TRESOR is a secure implementation of AES which is resistant against \
+cold boot attacks."
+url="https://www1.cs.fau.de/tresor"
+depends="mkinitfs linux-firmware"
+_depends_dev="perl gmp-dev elfutils-dev bash"
+makedepends="$_depends_dev sed installkernel bc linux-headers patchutils html2text"
+options="!strip"
+_config=${config:-config-${_flavor}.${CARCH}}
+_methods="aesni generic"
+_imethods="prompt sysfs"
+_tresorver="3.18.5"
+source="https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$_kernver.tar.xz
+	0001-HID-apple-fix-Fn-key-Magic-Keyboard-on-bluetooth.patch
+	config-${_flavor}.x86
+	config-${_flavor}.x86_64
+	tresor-makefile-i686.patch
+	tresor-process-i686.patch
+	tresor-testmgr-i686.patch
+	tresor-makefile-aesni.patch
+	tresor-process-aesni.patch
+	tresor-testmgr-aesni.patch
+	tresor-tresor_asm_64.patch
+	tresor-tresor_key_64.patch
+	wait.patch
+	http://www1.informatik.uni-erlangen.de/filepool/projects/tresor/tresor-patch-${_tresorver}_aesni
+	http://www1.informatik.uni-erlangen.de/filepool/projects/tresor/tresor-patch-${_tresorver}_i686
+	http://www1.informatik.uni-erlangen.de/filepool/projects/tresor/tresor_sysfs.c
+	tresor-readme.html::https://www1.informatik.uni-erlangen.de/tresor?q=content/readme"
+subpackages=
+_flavors=
+if [[ "${CBUILD_ARCH}" == "x86" ]] ; then
+	subpackages="$subpackages \
+		linux-${_flavor}-generic-prompt:_tresor_generic_prompt:$CBUILD_ARCH \
+		linux-${_flavor}-generic-sysfs:_tresor_generic_sysfs:$CBUILD_ARCH"
+fi
+if [[ "${CBUILD_ARCH}" == "x86_64" ]] ; then
+	subpackages="$subpackages \
+		linux-${_flavor}-generic-prompt:_tresor_generic_prompt:$CBUILD_ARCH \
+		linux-${_flavor}-generic-sysfs:_tresor_generic_sysfs:$CBUILD_ARCH \
+		linux-${_flavor}-aesni-prompt:_tresor_aesni_prompt:$CBUILD_ARCH \
+		linux-${_flavor}-aesni-sysfs:_tresor_aesni_sysfs:$CBUILD_ARCH"
+fi
+subpackages="$subpackages $pkgname-dev:_dev:$CBUILD_ARCH $pkgname-tools \
+		$pkgname-doc"
+for _i in $source; do
+	case $_i in
+	config-*.$CARCH)
+		_f=${_i%.$CARCH}
+		_f=${_f#config-}
+		_flavors="$_flavors ${_f}" ;;
+	esac
+done
+if [ "${pkgver%.0}" = "$pkgver" ]; then
+	source="$source
+	https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/patch-$pkgver.xz"
+fi
+arch="x86 x86_64"
+license="GPL-2.0"
+_abi_release=${pkgver}
+HOSTCC="${CC:-gcc}"
+HOSTCC="${HOSTCC#${CROSS_COMPILE}}"
+
+_patch_tresor() {
+	local flavor="$1"
+	local method="$2"
+	local imethod="$3"
+	if [[ "$CBUILD_ARCH" == "x86_64" || "$CBUILD_ARCH" == "x86" ]] ; then
+		local pmethod=$method
+		if [[ "$method" == "generic" ]] ; then
+			pmethod="i686"
+		fi
+		filterdiff -x '*/power/process.c' -x '*crypto/testmgr.c' \
+			-x a/Makefile \
+			"$srcdir"/tresor-patch-${_tresorver}_$pmethod > \
+"$srcdir"/linux-$_kernver-$method-$imethod/tresor-patch-${_tresorver}_$pmethod.mod
+		patch -p1 -i \
+"$srcdir"/linux-$_kernver-$method-$imethod/tresor-patch-${_tresorver}_$pmethod.mod
+		patch -p1 -i "$srcdir"/tresor-makefile-$pmethod.patch
+		patch -p1 -i "$srcdir"/tresor-process-$pmethod.patch
+		patch -p1 -i "$srcdir"/tresor-testmgr-$pmethod.patch
+		if [[ "$method" == "generic" && \
+			"$CBUILD_ARCH" == "x86_64" ]] ; then
+			patch -p1 -i "$srcdir"/tresor-tresor_asm_64.patch
+			patch -p1 -i "$srcdir"/tresor-tresor_key_64.patch
+		fi
+		if [[ "$imethod" == "prompt" ]] ; then
+			patch -p1 -i "$srcdir"/wait.patch
+		fi
+	fi
+}
+
+_unset_option() {
+	local option="$1"
+	sed -i -E -e "s|[ ]*$option(=[ym0-9]+)?\$|# $option is not set|g" \
+		.config
+}
+
+_replace_option() {
+	local option="$1"
+	local value="$2"
+	sed -i -E -e "s|[#]+[ ]*$option(=[ym0-9])? is not set|$option=$value|g"\
+		.config
+}
+
+_verify_unset_option() {
+	local option="$1"
+	set +e
+	grep -E -e "$option(=[ym0-9]+)?" .config
+	if [[ "$?" == "0" ]] ; then
+		_unset_option "$option"
+	else
+		echo "# $option is not set" >> .config
+	fi
+	set -e
+}
+
+_config_tresor() {
+	local flavor="$1"
+	local method="$2"
+	local imethod="$3"
+	_verify_unset_option "CONFIG_HID"
+	_verify_unset_option "CONFIG_HID_GENERIC"
+	_verify_unset_option "CONFIG_USB_SUPPORT"
+	_verify_unset_option "CONFIG_USB"
+	_verify_unset_option "CONFIG_USB_HID"
+	_verify_unset_option "CONFIG_USB_EHCI_HCD"
+	_verify_unset_option "CONFIG_USB_EHCI_PCI"
+	_verify_unset_option "CONFIG_USB_OHCI_HCD"
+	_verify_unset_option "CONFIG_USB_OHCI_HCD_PCI"
+	_verify_unset_option "CONFIG_USB_UHCI_HCD"
+	_verify_unset_option "CONFIG_INPUT_KEYBOARD"
+	_verify_unset_option "CONFIG_KEYBOARD_ATKBD"
+	#
+	_replace_option "CONFIG_HID" "y"
+	_replace_option "CONFIG_HID_GENERIC" "y"
+	_replace_option "CONFIG_USB_SUPPORT" "y"
+	_replace_option "CONFIG_USB" "y"
+	_replace_option "CONFIG_USB_HID" "y"
+	_replace_option "CONFIG_USB_EHCI_HCD" "y"
+	_replace_option "CONFIG_USB_EHCI_PCI" "y"
+	_replace_option "CONFIG_USB_OHCI_HCD" "y"
+	_replace_option "CONFIG_USB_OHCI_HCD_PCI" "y"
+	_replace_option "CONFIG_USB_UHCI_HCD" "y"
+	_replace_option "CONFIG_INPUT_KEYBOARD" "y"
+	_replace_option "CONFIG_KEYBOARD_ATKBD" "y"
+	_verify_unset_option "CONFIG_CRYPTO_TRESOR"
+	_verify_unset_option "CONFIG_CRYPTO_ALGAPI"
+	_verify_unset_option "CONFIG_CRYPTO_MANAGER"
+	_verify_unset_option "CONFIG_CRYPTO_MANAGER2"
+	_verify_unset_option "CONFIG_CRYPTO_TRESOR_PROMPT"
+	_verify_unset_option "CONFIG_CRYPTO_TRESOR_SYSFS"
+	_verify_unset_option "CONFIG_CRYPTO_TRESOR_KEY_VIA_CPU0"
+	#
+	if [[ "$CBUILD_ARCH" == "x86_64" || "$CBUILD_ARCH" == "x86" ]] ; then
+		_replace_option "CONFIG_CRYPTO_TRESOR" "y"
+		_replace_option "CONFIG_CRYPTO_ALGAPI" "y"
+		_replace_option "CONFIG_CRYPTO_MANAGER" "y"
+		_replace_option "CONFIG_CRYPTO_MANAGER2" "y"
+		if [[ "$imethod" == "prompt" ]] ; then
+			_replace_option "CONFIG_CRYPTO_TRESOR_PROMPT" "y"
+		else
+			_verify_unset_option "CONFIG_SUSPEND"
+			_verify_unset_option "CONFIG_HIBERNATION"
+			_replace_option "CONFIG_CRYPTO_TRESOR_SYSFS" "y"
+		fi
+	fi
+	if [[ "$CBUILD_ARCH" == "x86" ]] ; then
+		_replace_option "CONFIG_CRYPTO_AES" "y"
+	fi
+	# DMA attack prevention
+	_verify_unset_option "CONFIG_DMA_ENGINE"
+	_verify_unset_option "CONFIG_DMA_ENGINE_RAID"
+	_verify_unset_option "CONFIG_DMA_API_DEBUG"
+	_verify_unset_option "CONFIG_DW_DMAC_PCI"
+	_verify_unset_option "CONFIG_DW_DMAC_CORE"
+	_verify_unset_option "CONFIG_B43LEGACY_DMA_AND_PIO_MODE"
+	_verify_unset_option "CONFIG_B43LEGACY_DMA"
+	_verify_unset_option "CONFIG_FIREWIRE"
+	_verify_unset_option "CONFIG_HAVE_DMA_API_DEBUG"
+	_verify_unset_option "CONFIG_HOTPLUG_PCI"
+	_verify_unset_option "CONFIG_HOTPLUG_PCI_PCIE"
+	_verify_unset_option "CONFIG_HOTPLUG_PCI_ACPI"
+	_verify_unset_option "CONFIG_HOTPLUG_PCI_ACPI_IBM"
+	_verify_unset_option "CONFIG_HOTPLUG_PCI_CPCI"
+	_verify_unset_option "CONFIG_HOTPLUG_PCI_CPCI_ZT5550"
+	_verify_unset_option "CONFIG_HOTPLUG_PCI_CPCI_GENERIC"
+	_verify_unset_option "CONFIG_HOTPLUG_PCI_SHPC"
+	_verify_unset_option "CONFIG_HSU_DMA"
+	_verify_unset_option "CONFIG_INTEL_IDMA64"
+	_verify_unset_option "CONFIG_INTEL_IOATDMA"
+	_verify_unset_option "CONFIG_INTEL_MIC_X100_DMA"
+	_verify_unset_option "CONFIG_ISA_DMA_API"
+	_verify_unset_option "CONFIG_NO_DMA"
+	_verify_unset_option "CONFIG_PATA_HPT3X3_DMA"
+	_verify_unset_option "CONFIG_PCCARD"
+	_verify_unset_option "CONFIG_QCOM_HIDMA_MGMT"
+	_verify_unset_option "CONFIG_SCSI_DMA"
+	_verify_unset_option "CONFIG_SERIAL_8250_DMA"
+	_verify_unset_option "CONFIG_SND_DMA_SGBUF"
+	_verify_unset_option "CONFIG_THUNDERBOLT"
+	_verify_unset_option "CONFIG_USB_XHCI_HCD"
+	# Additional boot time hardening features
+	# Enable TXT for secure boot
+	_verify_unset_option "CONFIG_IOMMU_SUPPORT"
+	_verify_unset_option "CONFIG_AMD_IOMMU"
+	_verify_unset_option "CONFIG_AMD_IOMMU_V2"
+	_verify_unset_option "CONFIG_INTEL_IOMMU"
+	_verify_unset_option "CONFIG_INTEL_IOMMU_DEFAULT_ON"
+	_verify_unset_option "CONFIG_IRQ_REMAP"
+	_replace_option "CONFIG_IOMMU_SUPPORT" "y"
+	_replace_option "CONFIG_AMD_IOMMU" "y"
+	_replace_option "CONFIG_AMD_IOMMU_V2" "y"
+	_replace_option "CONFIG_INTEL_IOMMU" "y"
+	_replace_option "CONFIG_INTEL_IOMMU_DEFAULT_ON" "y"
+	_replace_option "CONFIG_IRQ_REMAP" "y"
+	# Enable TPM
+	_verify_unset_option "CONFIG_TCG_TIS"
+	_verify_unset_option "CONFIG_TCG_TIS_SPI"
+	_verify_unset_option "CONFIG_TCG_TIS_I2C_ATMEL"
+	_verify_unset_option "CONFIG_TCG_TIS_I2C_INFINEON"
+	_verify_unset_option "CONFIG_TCG_TIS_I2C_NUVOTON"
+	_verify_unset_option "CONFIG_TCG_NSC"
+	_verify_unset_option "CONFIG_TCG_ATMEL"
+	_verify_unset_option "CONFIG_TCG_INFINEON"
+	_verify_unset_option "CONFIG_TCG_XEN"
+	_verify_unset_option "CONFIG_TCG_CRB"
+	_verify_unset_option "CONFIG_TCG_TIS_ST33ZP24_I2C"
+	_verify_unset_option "CONFIG_TCG_TIS_ST33ZP24_SPI"
+	_replace_option "CONFIG_TCG_TIS" "y"
+	_replace_option "CONFIG_TCG_TIS_SPI" "y"
+	_replace_option "CONFIG_TCG_TIS_I2C_ATMEL" "y"
+	_replace_option "CONFIG_TCG_TIS_I2C_INFINEON" "y"
+	_replace_option "CONFIG_TCG_TIS_I2C_NUVOTON" "y"
+	_replace_option "CONFIG_TCG_NSC" "y"
+	_replace_option "CONFIG_TCG_ATMEL" "y"
+	_replace_option "CONFIG_TCG_INFINEON" "y"
+	_replace_option "CONFIG_TCG_XEN" "y"
+	_replace_option "CONFIG_TCG_CRB" "y"
+	_replace_option "CONFIG_TCG_TIS_ST33ZP24_I2C" "y"
+	_replace_option "CONFIG_TCG_TIS_ST33ZP24_SPI" "y"
+	# Polish the TRESOR early user prompt
+	_replace_option "CONFIG_CONSOLE_LOGLEVEL_DEFAULT" "1"
+	# Harden against DMA Attack
+	_replace_option "CONFIG_MESSAGE_LOGLEVEL_DEFAULT" "1"
+
+	# Unsetting this doesn't work but left for concerned
+	_replace_option "CONFIG_NO_DMA" "y"
+	_unset_option "CONFIG_HAS_DMA"
+}
+
+prepare() {
+	local _patch_failed=
+	for method in ${_methods} ; do
+		for imethod in ${_imethods} ; do
+			cp -a "$srcdir"/linux-$_kernver \
+				"$srcdir"/linux-$_kernver-$method-$imethod
+		done
+	done	
+	for method in ${_methods} ; do
+		for imethod in ${_imethods} ; do
+		if [[ "$method" == "aesni" && "$CBUILD_ARCH" == "x86" ]]; then
+			continue
+		fi
+		cd "$srcdir"/linux-$_kernver-$method-$imethod
+		if [ "$_kernver" != "$pkgver" ]; then
+			unxz -c < "$srcdir"/patch-$pkgver.xz | patch -p1 -N
+		fi
+		for i in $source; do
+			case $i in
+				tresor-makefile-*.patch|tresor-process-*.patch|\
+tresor-testmgr-*.patch|tresor-patch-*_aesni|tresor-patch-*_i686|\
+tresor-tresor_asm_64.patch|tresor-tresor_key_64.patch|\
+wait.patch) ;;
+				*.patch) patch -p1 -N -i "$srcdir"/$i ;;
+			esac
+		done
+		if ! [ -z "$_patch_failed" ]; then
+			error "The following patches failed:"
+			cat failed
+		fi
+		rm -f localversion*
+		for i in ${_flavors}; do
+			_patch_tresor $i $method $imethod
+			local _config=config-$i.${CARCH}
+			local _builddir="$srcdir"/build-$i-$method-$imethod
+			mkdir -p "$_builddir"
+			echo "-$pkgrel-$i" > "$_builddir"/localversion-alpine
+			cp "$srcdir"/$_config "$_builddir"/.config
+			cd "$_builddir"
+			_config_tresor $i $method $imethod
+			cd "$srcdir"/linux-$_kernver-$method-$imethod
+			yes "" | \
+			make -C "$srcdir"/linux-$_kernver-$method-$imethod \
+				O="$_builddir" HOSTCC="${CC:-gcc}" oldconfig
+		done
+		done
+	done
+}
+
+_build_tresor() {
+	unset LDFLAGS
+	local method="$1"
+	local imethod="$2"
+	for i in ${_flavors}; do
+		if [ -e "$srcdir"/build-$i ] ; then
+			rm "$srcdir"/build-$i
+		fi
+		ln -s "$srcdir"/build-$i-$method-$imethod "$srcdir"/build-$i
+		cd "$srcdir"/build-$i
+		make clean
+		make CC="${CC:-gcc}" \
+			KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-Alpine"
+	done
+}
+
+_build_tresor_tools() {
+	mkdir -p "$srcdir"/build
+	cd "$srcdir"/build
+	cp -a "$srcdir"/tresor_sysfs.c ./
+	cc tresor_sysfs.c -o tresor_sysfs
+}
+
+_build_tresor_docs() {
+	mkdir -p "$srcdir"/build
+	cp -a "$srcdir"/tresor-readme.html ./
+	html2text tresor-readme.html > tresor-readme.txt
+	install -d "$pkgdir"/usr/share/doc/$pkgname
+	install -D tresor-readme.txt \
+		"$pkgdir"/usr/share/doc/$pkgname/tresor-readme.txt 
+		
+}
+
+build() {
+	_build_tresor_tools
+	_build_tresor_docs
+}
+
+_package() {
+	local _buildflavor="$1" _outdir="$2"
+	local _abi_release=${pkgver}-${pkgrel}-${_buildflavor}
+	local _install
+	cd "$srcdir"/build-$_buildflavor
+	mkdir -p "$_outdir"/boot "$_outdir"/lib/modules
+	case "$CARCH" in
+	arm*)
+		local _dtbdir="$_outdir"/usr/lib/linux-${_abi_release}
+		mkdir -p "$_dtbdir"
+		for i in arch/arm/boot/dts/*.dtb ; do
+			install -m644 "$i" "$_dtbdir"
+		done
+		_install=zinstall ;;
+	*)
+		_install=install ;;
+	esac
+	make -j1 modules_install $_install INSTALL_MOD_PATH="$_outdir" 	\
+		INSTALL_PATH="$_outdir"/boot
+	rm -rf "$_outdir"/lib/modules/${_abi_release}/build \
+		"$_outdir"/lib/modules/${_abi_release}/source \
+		"$_outdir"/lib/firmware
+	install -D include/config/kernel.release \
+		"$_outdir"/usr/share/kernel/$_buildflavor/kernel.release
+}
+
+_package_tresor() {
+	local method="$1"
+	depends="$depends linux-firmware"
+	_package $_flavor "$subpkgdir"
+}
+
+_tresor_x() {
+        local method="$1"
+	local imethod="$2"
+	pkgdesc="${pkgdesc} ($imethod $method)"
+	_build_tresor $method $imethod
+	_package_tresor $method
+}
+
+_tresor_generic_prompt() {
+        local method=generic
+	local imethod=prompt
+	_tresor_x $method $imethod
+}
+
+_tresor_generic_sysfs() {
+        local method=generic
+	local imethod=sysfs
+	_tresor_x $method $imethod
+}
+
+_tresor_aesni_prompt() {
+        local method=aesni
+	local imethod=prompt
+	_tresor_x $method $imethod
+}
+
+_tresor_aesni_sysfs() {
+        local method=aesni
+	local imethod=sysfs
+	_tresor_x $method $imethod
+}
+
+tools() {
+	install -Dm755 "$srcdir"/build/tresor_sysfs \
+		"$subpkgdir"/usr/bin/tresor_sysfs
+}
+
+_dev() {
+	local _flavor=$(echo $subpkgname | sed -E 's/(^linux-|-dev$)//g')
+	local _abi_release=${pkgver}-${pkgrel}-${_flavor}
+	pkgdesc="Headers and script for third party modules for ${_flavor} \
+kernel"
+	depends="$_depends_dev"
+	local dir="$subpkgdir"/usr/src/linux-headers-${_abi_release}
+	mkdir -p "$dir"
+	cp "$srcdir"/config-${_flavor}.${CARCH} "$dir"/.config
+	echo "-$pkgrel-${_flavor}" > "$dir"/localversion-alpine
+	make -j1 -C "$srcdir"/linux-$_kernver O="$dir" HOSTCC="${CC:-gcc}" \
+		silentoldconfig prepare modules_prepare scripts
+	rm "$dir"/Makefile "$dir"/source
+	# copy the needed stuff from real sources
+	# from ubuntu kernel build script: 
+# http://kernel.ubuntu.com/git/ubuntu/ubuntu-zesty.git/tree/debian/rules.d/3-binary-indep.mk
+	cd "$srcdir"/linux-$_kernver
+	find .  -path './include/*' -prune \
+		-o -path './scripts/*' -prune -o -type f \
+		\( -name 'Makefile*' -o -name 'Kconfig*' -o -name 'Kbuild*' -o \
+		   -name '*.sh' -o -name '*.pl' -o -name '*.lds' \) \
+		-print | cpio -pdm "$dir"
+	cp -a scripts include "$dir"
+	find $(find arch -name include -type d -print) -type f | cpio -pdm "$dir"
+	install -Dm644 "$srcdir"/build-${_flavor}/Module.symvers "$dir"/Module.symvers
+	mkdir -p "$subpkgdir"/lib/modules/${_abi_release}
+	ln -sf /usr/src/linux-headers-${_abi_release} \
+		"$subpkgdir"/lib/modules/${_abi_release}/build
+}
+
+sha512sums="77e43a02d766c3d73b7e25c4aafb2e931d6b16e870510c22cef0cdb05c3acb7952b8908ebad12b10ef982c6efbe286364b1544586e715cf38390e483927904d8  linux-4.14.tar.xz
+5373728be2b507c3db5e042e1d768740df7965078868afdc46418b1adc4cae3d8f9f1aedb59975a0f2acf8754340499354fcf97c503397a5d9886ccc9689b782  0001-HID-apple-fix-Fn-key-Magic-Keyboard-on-bluetooth.patch
+d3c1eec2308354884179c96f56275684530d2b6634ee9734e16cedb68130802b0a2681c81f7de459fad12d82d079efb7f6b3a4f91d9c86d79d55db7657e450e0  config-tresor.x86
+b1699dfcbdf3540219b8af477569d37dfce0a448b6cf876fe119ff932da8efa0c2cc5ab03f3400381a97845ca8a1d75220ad0948f594c54618196f6637a0c609  config-tresor.x86_64
+24e31be48ee36680e3dab915bf95e7739f01eaec3e35e16454b1254a929e50c10117b3ee679fc6370503d9715b3af67d162a1587842437dca13db365045e6b22  tresor-makefile-i686.patch
+37800a3f529da749953eecb1a38d390dbc3c4c501567395c3d0a2050a3a4ed3f3e38a1b1c71f881ae7321ca7b7ff659a9dd7986308885e33cdd9ad256f4e8bad  tresor-process-i686.patch
+d2ade895012d226f0b022840cb9644cc867a296875ff87b7faa29d3c0da902c8ad84e81df15bc3f2606a4c8e581d6cc0a145981ef37718ec3a2e2f9bb9230ddb  tresor-testmgr-i686.patch
+9624f39ed0c1120243b2937dfbfd34f6f105ef68344f42b3496ba1b96c1bab52d09c0241d57a28f3d1a19deab6d351f6f11c5355cd65a2fb112db3f8967302b7  tresor-makefile-aesni.patch
+37800a3f529da749953eecb1a38d390dbc3c4c501567395c3d0a2050a3a4ed3f3e38a1b1c71f881ae7321ca7b7ff659a9dd7986308885e33cdd9ad256f4e8bad  tresor-process-aesni.patch
+d2ade895012d226f0b022840cb9644cc867a296875ff87b7faa29d3c0da902c8ad84e81df15bc3f2606a4c8e581d6cc0a145981ef37718ec3a2e2f9bb9230ddb  tresor-testmgr-aesni.patch
+d8812038c06cd8011d26002e625cb30a41f3075f0b9735d0b872169804b6aa98d313eb06045c431b62eb09ab475115f5cd9d00415f6c24816dcd2ccd1294f598  tresor-tresor_asm_64.patch
+661bf4ab7f00a1cc052d9820548aafa66bfc63f50d173e6d4516c5f3899dd166c2e29665cea518134757adc776331d679b411f425192cb353ae891c257437c69  tresor-tresor_key_64.patch
+bc61f5f0cedc93f6522a2790d2f687206f24def29c50ef1927b90beb68de359e64c10c77079f785569636cfe277f0bc8ac9b7cfce3e599c2af9d633a04f24255  wait.patch
+e56e1093e299a1ce50781f5348fff4a07dd8a656091f1a5f76bf2689e58923e80bdbfbff313b45e2bd34de324952a3ead7c290365454737f26f75303be46fe5b  tresor-patch-3.18.5_aesni
+a3730ca29bb12bb80a953d4560742ad264aa00f79a8d9c1bf163c6ec02271663818f776b9351537701e68ee9761ef0ef99236c78b74146f7b6b1e5827b3150b8  tresor-patch-3.18.5_i686
+d48c9e62e23f8e56f736f695ef7d8c343a848566de4e243adf45c9893988355de3a066b70b3096bebbdd4023ed102e7fc68d8f930e42b13ee1d91bb0098f5791  tresor_sysfs.c
+533ce20320a77e7837ffecff0da241e45aa56c307b4ac8a647e4c7a2d3e5e22af2aefe0db3861ded48193393b1b47410895c06b7a8fa55237ede3b934404a41a  tresor-readme.html
+1ddddb3a8eeed75bf650b749fa04712d0db67615e4cc6195dc43046797970f3b459299b71366b9a254fa6c6c3896339c3cef65d93b4097ab90a5cfbb6aa1c445  patch-4.14.20.xz"

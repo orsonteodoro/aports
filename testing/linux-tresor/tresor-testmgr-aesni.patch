@@ -1,0 +1,147 @@
+--- a/crypto/testmgr.c.orig
++++ b/crypto/testmgr.c
+@@ -34,6 +34,9 @@
+ #include <crypto/akcipher.h>
+ #include <crypto/kpp.h>
+ #include <crypto/acompress.h>
++#ifdef CONFIG_CRYPTO_TRESOR
++#include <crypto/tresor.h>
++#endif
+ 
+ #include "internal.h"
+ 
+@@ -148,6 +151,20 @@
+ static const unsigned int IDX[8] = {
+ 	IDX1, IDX2, IDX3, IDX4, IDX5, IDX6, IDX7, IDX8 };
+ 
++#ifdef CONFIG_CRYPTO_TRESOR
++/* Prevent the test manager from overwriting dbg regs with test keys */
++static int tresor_tests_locked = 1;
++
++void tresor_lock_tests(void) { tresor_tests_locked = 1; }
++EXPORT_SYMBOL(tresor_lock_tests);
++
++void tresor_unlock_tests(void) { tresor_tests_locked = 0; }
++EXPORT_SYMBOL(tresor_unlock_tests);
++
++int tresor_lock_status(void) { return tresor_tests_locked; }
++EXPORT_SYMBOL(tresor_lock_status);
++#endif
++
+ static void hexdump(unsigned char *buf, unsigned int len)
+ {
+ 	print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET,
+@@ -1011,6 +1028,15 @@
+ 	else
+ 		e = "decryption";
+ 
++#ifdef CONFIG_CRYPTO_TRESOR
++	if (strstr(algo, "tresor")) {
++		if (tresor_tests_locked) {
++			ret = 0;
++			goto out;
++		}
++	}
++#endif
++
+ 	j = 0;
+ 	for (i = 0; i < tcount; i++) {
+ 		if (template[i].np)
+@@ -1032,6 +1058,11 @@
+ 		if (template[i].wk)
+ 			crypto_cipher_set_flags(tfm, CRYPTO_TFM_REQ_WEAK_KEY);
+ 
++#ifdef CONFIG_CRYPTO_TRESOR
++		if (strstr(algo, "tresor"))
++			tresor_setkey(template[i].key);
++#endif
++
+ 		ret = crypto_cipher_setkey(tfm, template[i].key,
+ 					   template[i].klen);
+ 		if (template[i].fail == !ret) {
+@@ -1119,6 +1150,13 @@
+ 	skcipher_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG,
+ 				      tcrypt_complete, &result);
+ 
++#ifdef CONFIG_CRYPTO_TRESOR
++	if (tresor_tests_locked) {
++		ret = 0;
++		goto out;
++	}
++#endif
++
+ 	j = 0;
+ 	for (i = 0; i < tcount; i++) {
+ 		if (template[i].np && !template[i].also_non_np)
+@@ -1146,6 +1184,11 @@
+ 			crypto_skcipher_set_flags(tfm,
+ 						  CRYPTO_TFM_REQ_WEAK_KEY);
+ 
++#ifdef CONFIG_CRYPTO_TRESOR
++			if (strstr(algo, "tresor"))
++				tresor_setkey(template[i].key);
++#endif
++
+ 		ret = crypto_skcipher_setkey(tfm, template[i].key,
+ 					     template[i].klen);
+ 		if (template[i].fail == !ret) {
+@@ -1227,6 +1270,11 @@
+ 			crypto_skcipher_set_flags(tfm,
+ 						  CRYPTO_TFM_REQ_WEAK_KEY);
+ 
++#ifdef CONFIG_CRYPTO_TRESOR
++			if (strstr(algo, "tresor"))
++				tresor_setkey(template[i].key);
++#endif
++
+ 		ret = crypto_skcipher_setkey(tfm, template[i].key,
+ 					     template[i].klen);
+ 		if (template[i].fail == !ret) {
+@@ -2600,6 +2648,23 @@
+ 			}
+ 		}
+ 	}, {
++#ifdef CONFIG_CRYPTO_TRESOR
++		.alg = "cbc(tresor)",
++		.test = alg_test_skcipher,
++		.suite = {
++			.cipher = {
++				.enc = {
++					.vecs = aes_cbc_enc_tv_template,
++					.count = AES_CBC_ENC_TEST_VECTORS
++				},
++				.dec = {
++					.vecs = aes_cbc_dec_tv_template,
++					.count = AES_CBC_DEC_TEST_VECTORS
++				}
++			}
++		}
++	}, {
++#endif
+ 		.alg = "cbc(twofish)",
+ 		.test = alg_test_skcipher,
+ 		.suite = {
+@@ -3052,6 +3117,23 @@
+ 			}
+ 		}
+ 	}, {
++#ifdef CONFIG_CRYPTO_TRESOR
++		.alg = "ecb(tresor)",
++		.test = alg_test_skcipher,
++		.suite = {
++			.cipher = {
++				.enc = {
++					.vecs = aes_enc_tv_template,
++					.count = AES_ENC_TEST_VECTORS
++				},
++				.dec = {
++					.vecs = aes_dec_tv_template,
++					.count = AES_DEC_TEST_VECTORS
++				}
++			}
++		}
++	}, {
++#endif
+ 		.alg = "ecb(twofish)",
+ 		.test = alg_test_skcipher,
+ 		.suite = {
