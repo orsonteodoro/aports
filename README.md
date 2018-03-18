@@ -20,32 +20,32 @@ I am done with this distro and never coming back.
 
 You can find my contributions hosted on this GitHub repo these branches:
 
-https://github.com/orsonteodoro/aports/tree/add-bear
-https://github.com/orsonteodoro/aports/tree/add-cask
-https://github.com/orsonteodoro/aports/tree/add-ycmd
-https://github.com/orsonteodoro/aports/tree/add-typescript
-https://github.com/orsonteodoro/aports/tree/add-qutebrowser
-https://github.com/orsonteodoro/aports/tree/add-emacs-ycmd
-https://github.com/orsonteodoro/aports/tree/add-font-comic-neue
-https://github.com/orsonteodoro/aports/tree/add-font-fantasque-sans
-https://github.com/orsonteodoro/aports/tree/add-gnome-calculator
-https://github.com/orsonteodoro/aports/tree/add-godot
-https://github.com/orsonteodoro/aports/tree/add-keepassxc-0
-https://github.com/orsonteodoro/aports/tree/add-linux-ck
-https://github.com/orsonteodoro/aports/tree/add-linux-pf
-https://github.com/orsonteodoro/aports/tree/add-lmms
-https://github.com/orsonteodoro/aports/tree/add-oh-my-zsh-0
-https://github.com/orsonteodoro/aports/tree/add-perf
-https://github.com/orsonteodoro/aports/tree/add-powerline-extra-symbols
-https://github.com/orsonteodoro/aports/tree/add-py-compdb
-https://github.com/orsonteodoro/aports/tree/add-py-pyhamcrest
-https://github.com/orsonteodoro/aports/tree/add-py-pympler
-https://github.com/orsonteodoro/aports/tree/add-py-ycm-generator
-https://github.com/orsonteodoro/aports/tree/add-py2-configparser
-https://github.com/orsonteodoro/aports/tree/add-qt5-webengine
-https://github.com/orsonteodoro/aports/tree/add-youcompleteme
-https://github.com/orsonteodoro/aports/tree/enable-cairo-emoji-support
-https://github.com/orsonteodoro/aports/tree/expose-qml-for-qtwebchannel
-https://github.com/orsonteodoro/aports/tree/linux-zen
-https://github.com/orsonteodoro/aports/tree/update-py-jedi
-https://github.com/orsonteodoro/aports/tree/add-tresor
+* https://github.com/orsonteodoro/aports/tree/add-bear
+* https://github.com/orsonteodoro/aports/tree/add-cask
+* https://github.com/orsonteodoro/aports/tree/add-ycmd
+* https://github.com/orsonteodoro/aports/tree/add-typescript
+* https://github.com/orsonteodoro/aports/tree/add-qutebrowser
+* https://github.com/orsonteodoro/aports/tree/add-emacs-ycmd
+* https://github.com/orsonteodoro/aports/tree/add-font-comic-neue
+* https://github.com/orsonteodoro/aports/tree/add-font-fantasque-sans
+* https://github.com/orsonteodoro/aports/tree/add-gnome-calculator
+* https://github.com/orsonteodoro/aports/tree/add-godot
+* https://github.com/orsonteodoro/aports/tree/add-keepassxc-0
+* https://github.com/orsonteodoro/aports/tree/add-linux-ck
+* https://github.com/orsonteodoro/aports/tree/add-linux-pf
+* https://github.com/orsonteodoro/aports/tree/add-lmms
+* https://github.com/orsonteodoro/aports/tree/add-oh-my-zsh-0
+* https://github.com/orsonteodoro/aports/tree/add-perf
+* https://github.com/orsonteodoro/aports/tree/add-powerline-extra-symbols
+* https://github.com/orsonteodoro/aports/tree/add-py-compdb
+* https://github.com/orsonteodoro/aports/tree/add-py-pyhamcrest
+* https://github.com/orsonteodoro/aports/tree/add-py-pympler
+* https://github.com/orsonteodoro/aports/tree/add-py-ycm-generator
+* https://github.com/orsonteodoro/aports/tree/add-py2-configparser
+* https://github.com/orsonteodoro/aports/tree/add-qt5-webengine
+* https://github.com/orsonteodoro/aports/tree/add-youcompleteme
+* https://github.com/orsonteodoro/aports/tree/enable-cairo-emoji-support
+* https://github.com/orsonteodoro/aports/tree/expose-qml-for-qtwebchannel
+* https://github.com/orsonteodoro/aports/tree/linux-zen
+* https://github.com/orsonteodoro/aports/tree/update-py-jedi
+* https://github.com/orsonteodoro/aports/tree/add-tresor
