@@ -18,7 +18,7 @@ contribution system.
 
 I am done with this distro and never coming back.
 
-You can find my soon to be rejected contributions hosted on this GitHub repo these branches:
+You can find my soon to be rejected and approved rejected contributions hosted on this GitHub repo these branches:
 
 * https://github.com/orsonteodoro/aports/tree/add-bear
 * https://github.com/orsonteodoro/aports/tree/add-cask
